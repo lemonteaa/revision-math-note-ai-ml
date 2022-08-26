@@ -89,7 +89,7 @@ $ \langle f, \tilde{K_x} \rangle_{H_K} = L_x(f) = f(x)$ for all $ f \in H_K$, he
 
 ### Feature maps
 
-A feature map is any function $\phi : X \rightarrow F$ where F is some hilbert space. Note that any feature map give rise to a symmetric psd kernel (which then implicitly defines a RKHS from the sections above) by defining 
+A feature map is any function (not necessarily linear) $\phi : X \rightarrow F$ where F is some hilbert space. Note that any feature map give rise to a symmetric psd kernel (which then implicitly defines a RKHS from the sections above) by defining 
 
 $K(x, y) := \langle \phi(x), \phi(y) \rangle_F$...(3) 
 
@@ -105,6 +105,15 @@ $ K(x, y) = \sum \lambda_i e_i(x) e_i(y) = \sum \left( \sqrt{\lambda_i} e_i(x) \
 
 Hence we can take $F = l^2$ with the standard inner product, and the feature map sends x to the countably infinite sequence $ ( \sqrt{\lambda_1} e_1(x), \sqrt{\lambda_2} e_2(x), \cdots )$
 
+### Constructing RKHS from Feature Maps
+
+Let $H_\phi$ be the space of functions $X \rightarrow \mathbb{R}$ that are pullback of linear functional on $F$. As $F$ is a Hilbert space, by Riesz representation we are considering functions of the form $x \mapsto \langle w, \phi(x) \rangle_F$. We can see that the function's data is captured by the vector $w \in F$ alone. Actually there's a bit more - we need to consider uniqueness. By linearity, two vectors $w$ and $w'$ represent the same pullbacked function if and only if their differences satisfy $\langle w - w', \phi(X) \rangle_F = 0$, or in other words $w - w' \in (\text{im} \phi)^\prep$. One nice thing about prep space is that it is always a linear closed subspace, even if the input is an arbitrary subset. Hence $H_\phi$ as a Hilbert space should be isomorphic to $F/Y$, $Y = (\text{im} \phi)^\prep$.
+
+We recall how an inner product can be imposed on the quotient space. For any equivalence class pick a cannonical representative to be the one with shortest distance to the origin/smallest norm. This can be done because the equivalent class is a closed affine set, so we can apply the Hilbert Projection Theorem. Then just apply the original inner product in the space. Linearity works out because projection is also linear.
+
+The resulting space is indeed a RKHS: the result of evaluation at a point $x$ satisfies $| \langle w, \phi(x) \rangle | \leq || w || || \phi(x) ||$ and so $|| \phi(x) ||$ is the norm of $L_x$.
+
+To see formula (3), notice that as our inner product now take place in $F$, the evaluation functional is in effect given by taking inner product of the representing vector against $\phi(x)$. That is, $\phi(x)$ is the representing vector of $L_x$ (!).
 
 ## Representer Theorem
 
