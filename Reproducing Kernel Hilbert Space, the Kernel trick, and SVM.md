@@ -139,3 +139,51 @@ Now, because $v$ is prependicular to the remaining part of the expression $\sum 
 
 ## Relation to SVM
 
+Sadly, after these theoretical backgrounds, SVM and the Kernel trick can actually be understood with only a rather loose connection to them.
+
+### Linear SVM as empirical risk minimization
+
+The linear case of SVM is this: given a set of points $x_i$ in some vector space, with a binary label $y_i \in \{ -1, +1 \}$, we want to find a linear classifier - an affine functional $w^T x - b$ so that it evaluates to positive for all points with one label, and negative for all the others. The answer is given by convex analysis - if they are linearly separable, take their convex hulls, then find a separating hyperplane. Actually we can find the *best* one - the one that separate them the most, by finding two supporting hyperplane that are parallel and with maximum margin.
+
+A variant more relevant to us is the *soft* case - we allow *some* misclassification, and instead judge it by a combination of factors: the amount of misclassification, plus the margin. Misclassification is quantified using the hinge loss $\max(0, 1 - y_i (w^T x_i - b))$.
+
+This problem is the same as empirical risk minimization - $|| w ||$ is the regularization term, and the hinge loss is the residual/error term.
+
+This perspective is mostly useful when comparing it against other machine learning/AI algorithms.
+
+### Solution via optimization theory - Primal and dual formulation
+
+The soft case of linear SVM can be directly solved using (classical) optimization theory. As we are specifically using the hinge loss, we can exploit this - using traditional technique/trick in linear programming etc, max term can be eliminated by introducing auxiliary variables $\zeta_i$, additional constriant that it be larger than both term in the max expression, then minimize $\zeta_i$ so that it matches the larger of the two.
+
+All in all, the primal problem is:
+
+$ \min \frac{1}{n} \sum_i \zeta_i + \lambda || w || \cdots (\zeta, w, b)$
+
+such that 
+
+a. $y_i (w^T x_i - b) \geq 1 - \zeta_i$
+
+b. $\zeta_i \geq 0$
+
+We can then apply Wolfe duality. Introduce variables $u_i \geq 0$ against the constriants a, and $v_i \geq 0$ against constraints b.
+
+The expression to optimization now have the additional term $\sum_i u_i \left[ y_i (w^T x_i - b) \geq 1 - \zeta_i \right] - \sum_i v_i \zeta_i$.
+
+For the gradients resulting in equality constraints:
+
+- Gradient against $b$: $ \sum_i y_i u_i = 0$
+- Gradient against $\zeta_i$: $\frac{1}{n} - u_i - v_i = 0$
+- Gradient against vector $w$: $2\lambda w - \sum_i u_i y_i x_i = 0$
+
+Then let $c_i := \frac{u_i}{2\lambda}$, substitute and rescale as necessary.
+
+After simplification the dual is:
+
+$\max \sum_i c_i + \sum_{i, j} c_i y_i \langle x_i, x_j \rangle y_j c_j$
+
+such that $\sum_i c_i y_i = 0$, $0 \leq c_i \leq \frac{1}{2n \lambda}$.
+
+### Feature space, Nonlinear case and kernel trick
+
+
+
