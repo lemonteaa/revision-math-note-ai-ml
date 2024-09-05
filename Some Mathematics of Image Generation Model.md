@@ -348,6 +348,144 @@ $\tilde \alpha_t (x_t, x_0) = \frac{\sqrt{\alpha_t} (1 - \bar \alpha_{t-1}) }{1 
 
 
 
+## SDE Formulation of sampling algorithms
+
+### Idea
+
+TODO
+
+One significant weakness of the DDPM model above, is that skipping steps in the backward diffusion process isn't generally possible. As each step involves evaluating a neural network, this can be very slow overall especially when the step number is large.
+
+One way to overcome this is to use a different sampling algorithm. In this approach, we consider the forward diffusion process again, and in the limit of having many steps we can take continuum limit to model a continous version of it (and so consider the original version as a discrete approximation), which is a SDE (Stochastic Differential Equation). Then, we will show that it is possible to derive a corresponding reverse time SDE so that it models the reverse diffusion process in a distributional sense.
+
+Given such a reverse time SDE, it would then be possible to "discretize" it again, using known methods in numerical analysis, especially those for numerically solving ODE (Ordinary Differential Equation) but adapted for SDE, to find an approximate solution. Given such a solution, it would then be possible to convert it into a sampling algorithm.
+
+The key of making this idea work is that in the final step to discretize it again, we can get a reasonable approximation using only a much smaller number of steps than the original discrete model.
+
+
+
+
+
+### Background
+
+**Ito's Calculus**
+
+A standard Weiner Process $W_t$ is a Stochastic Process that can be informally thought of as the continuous time integral of a white noise process: $W_t = \int_0^t N_\tau d\tau$, where N_\tau are i.i.d. normal. However, doing this in a continuous time way present difficulties with analysis/divergence/delta functions etc. We solve this by defining $W_t$ in other way instead based on what the informal intuition would suggest in terms of properties that $W_t$ should have. In short, $W_t$ represents a continuous time random walk, and it can be proved that it is characterized by starting at 0, independent and Gaussian increment ($W_{t+u} - W_t \sim \mathcal N(0, u)$), and almost surely continuous path.
+
+Stochastic process can be integrated through Ito calculus. Correctly defining it rigorously is a technical topic in mathematical analysis. Similar to ordinary calculus, we can also define differentials of these process, with an analogue of the product rules and chain rules. The major difference is that we will need to consider up to second order terms, where they are formalized as quadratic covariations. For our purpose, it suffices to know that $dW_t dW_t = [W_t, W_t] = t$, while taking quadratic covariation with a deterministic function will give 0. Thus we have $d(XY) = X dY + Y dX + dX dY$, and $df(X) = f'(X) dX + \frac{1}{2} f''(X) [X, X]$.
+
+A SDE (Stochastic Differential Equation) is a generalization of ODE (Ordinary Differential Equation) where the unknown is a stochastic process and the equation may also involves other known stochastic process. They are usually solved analytically (if possible) using Ito's calculus.
+
+**Fokker Planck Equation**
+
+SDE can also be solved in a distributional sense. Instead of finding a family of individual solution trajectories, we may instead be interested in knowing the marginal probability distribution of the process at specific point in time.
+
+Consider the general first order linear SDE $dX_t = \mu(X_t, t) dt + \sigma(X_t, t) dW_t$. And let $p(x, t)$ be the marginal probability distribution of $X_t$. Then $p(x, t)$ satisfies the following PDE (Partial Differential Equation):
+
+$\partial_t p(x, t) = -\partial_x ( \mu(x, t) p(x, t) ) + \partial_{xx} ( \frac{1}{2}\sigma(x, t)^2 p(x, t) )$
+
+
+
+### Solving the SDE
+
+Consider a forward SDE: $dx = f(t) x dt + g(t) dw_t$, where $w_t$ is a standard Weiner process. This can be considered to be a continuum limit of the discrete equation $x_{t + \Delta t} - x_t = f(x_t, t) \Delta t + g(t) \sqrt{\Delta t} \epsilon_t$, which can correspond to the DDPM in last section with correct fitting of the parameters.
+
+
+
+The SDE above can be analytically solved:
+
+$x(t) | x(0) \sim \mathcal N( s(t)x(0), s^2(t) \sigma^2(t) I)$, where
+
+$s(t) := \exp \left( \int_0^t f(\zeta) d\zeta \right), \sigma(t) := \sqrt{\int_0^t \frac{g(\zeta)^2}{s(\zeta)^2} d\zeta } $
+
+Let's work out the solution steps.
+
+We can solve it via the usual integrating factor method in ODE. So let $z$ be some stochastic process, and multiply the equation:
+
+$zdx - zf(t)xdt = z g(t) dw_t$.
+
+We will attempt to match the first order term of product rule to the left hand side. So:
+
+$d(zx) = zdx + xdz + \cdots = zdx + x \frac{dz}{dt} dt + \cdots$
+
+And hence we want $-zf(t)x = x \dot z \iff d \ln z = -f(t) dt$, using the usual log differentiation trick.
+
+It is then apparent that one possible solution is to set $z = \exp(- \int f) = [ \exp(\int f) ]^{-1}$.
+
+As this is deterministic, the second order term vanish, so we can relatively solve the rest in a straight forward way:
+
+$d(zx) = z g(t) dw_t, z(t)x(t) - z(0)x(0) = \int_0^t z(\tau)g(\tau) dw_\tau$
+
+Defining $s(t)$ as above, we have that $z(t) = \frac{1}{s(t)}$ and because $z(0) = 1$, we have
+
+$x(t) = s(t)\left( x(0) + \int_0^t \frac{g(\tau)}{s(\tau)} dw_\tau \right)$
+
+The result above follows by noting that the integral is normally distributed, with zero means, and variance is:
+
+$\int_0^t \left( \frac{g(\tau)}{s(\tau)} \right)^2 d\tau $
+
+
+
+**Some additional results:**
+
+If we do not condition on $x(0)$ and just let it be an arbitrary random variable (in the context of image generation, it would be the empirical data distribution), then the result would be sum of random variable and so the distribution is a convolution:
+
+$p(x, t) = s(t)^{-d} \left[ p_\text{data} \star \mathcal N(0, \sigma^2(t) I) \right] (\frac{x}{s(t)}) $
+
+
+
+Some paper suggested to change/invert the subject of the formula for $s(t), \sigma(t)$. Inverting to express $f(t)$ in terms of $s(t)$ is easy: $f(t) = \frac{\dot s(t)}{s(t)}$. Then consider:
+
+$\frac{d}{dt} \sigma^2(t) = 2\sigma(t) \dot \sigma(t)= \frac{g(t)^2}{s(t)^2}$
+
+So $\frac{g(t)}{s(t)} = \sqrt{2\sigma(t) \dot \sigma(t)}$, $g(t) = s(t) \sqrt{2 \sigma(t) \dot \sigma(t)}$
+
+Moreover, it turns out this is useful in probability flow formulation and allow us to interpret it in terms of change of parameter. For instance, $\sigma(t)$ is a time reparametrization as $\dot \sigma(t) dt = d(\sigma(t))$
+
+
+
+### Reverse Time SDE and Probability Flow Formulation
+
+Reversing time for a SDE is nontrivial compared to ODE. Here the main idea is to use the Fokker-Planck Equation to perform distributional matching (because in the context of image generation, the distribution is ultimately what we really care about).
+
+
+
+Consider the SDE of the form $dx_t = f(x_t, t) dt + g(t) dw_t$, and let its distributional solution be $p(x, t)$. Suppose there is another stochastic process $y_t$ so that its distributional solution is $p(x, T-t)$ (also written as $p_{T-t}(x)$). Then we evaluate:
+
+$\partial_t p_{T-t} = -(\partial_t p)(x, T-t) = \partial_x ( f(x, T-t) p_{T-t}(x) ) - \frac{g^2}{2} \partial_{xx} p_{T-t}(x) $
+
+(Notice the sign flip)
+
+We can compensite the sign flip in the first order term by flipping sign in the corresponding term in the SDE, but this doesn't work for the second order term because the coefficient is squared which would always be positive. Instead, we may slip it into the first order term after some change:
+
+$-\frac{g^2}{2} \partial_{xx} p_{T-t}(x) = +\frac{g^2}{2} \partial_{xx} p_{T-t}(x) - g^2 \partial_{xx} p_{T-t}(x)$
+
+Then we manipulate:
+
+$- g^2 \partial_{xx} p_{T-t}(x) = \partial_x ( -g^2 \frac{\partial_x p_{T-t}(x)}{p_{T-t}(x)} \cdot p_{T-t}(x) ) = \partial_x (-g^2 \nabla_x \ln p_{T-t}(x) \cdot p_{T-t}(x))$
+
+
+
+Overall, this will give us this SDE:
+
+$dy_t = -(f(y_t, T-t) - g^2(T-t)\partial_y \ln p_{T-t}(y_t) )dt + g(T-t) dw_t $
+
+
+
+What is interesting here is that if we discard the second order term entirely, using the same manipulation to directly slip in the whole $-\frac{g^2}{2} \partial_{xx} p_{T-t}(x)$ into the first order part, then we will get an SDE without the weiner process involved:
+
+$dy_t = -(f(y_t, T-t) - \frac{1}{2} g^2(T-t)\partial_y \ln p_{T-t}(y_t) )dt$
+
+
+
+Which is the probability flow formulation.
+
+
+
+Finally, notice that normally, it wouldn't have been possible to solve the reverse time SDE above as it involves the distributional solution to the original SDE in the first place! However, in the context of image generation, that term is also known as the score function, $\nabla_x \ln p$, which is available as the neural network's output.
+
+
+
 
 
 
