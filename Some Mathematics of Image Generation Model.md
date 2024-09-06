@@ -345,6 +345,49 @@ $\tilde \alpha_t (x_t, x_0) = \frac{\sqrt{\alpha_t} (1 - \bar \alpha_{t-1}) }{1 
 
 (You may find it helpful to notice that $\frac{\sqrt{\bar \alpha_{t-1}}}{\sqrt{\bar \alpha_t}} = \frac{1}{\sqrt{\alpha_t}}$. Also, the hint when computing the variance while clearing denominator above will be useful again.)
 
+### Training Objective
+
+The target is to train a neural network to predict the noise or equivalently, to perform the backward diffusion process by computing each backward step. To formulate the training objective, we will reuse the Variational Bayesian Inference framework above and specifically try to intrepret the setup as another Variational Autoencoder (VAE).
+
+If we are to look at the whole process as one single VAE, then the below interpretation would work:
+
+- $x_0$ is the signal/data, and the whole of the sequence $x_{1:T} = \{ x_1, \cdots, x_T \}$ (Notice that $x_0$ is excluded) is the latent.
+
+- Consider the forward diffusion process, which is a markov chain, and let $q$ be the joint probability distribution over all of $x_{0:T}$ (notice $x_0$ is included) produced by this process. This will play the role of "encoder". Notice that it can also be considered the "ground truth" which the corresponding "decoder" will try to approximate (but as we noted, this is all relative and in other application it could be the other way around with encoder trying to approximate the decoder. The point is that this distinction mostly doesn't matter as long as we ultimately end up with a pair of encoder/decoder that is "close enough")
+
+- Our neural network will be used to perform backward diffusion step by step (starting from a normally distributed $x_T$), so this process will also be a markov chain. Let the resulting joint distribution be $p_\theta$, where $\theta$ is the neural network trainable parameters. It will play the role of the decoder.
+
+What make this setup more complicated is that we are actually encoding/decoding in many steps - on each step, we encode by taking $x_{t-1}$ to $x_t$ through the forward diffusion process by $q$. Theoretically, exact decoding is also done by $q$, but we approximate it by the neural network provided backward process $p_\theta$ taking $x_t$ back to $x_{t-1}$.
+
+Ultimately, we will take the ELB as the training objective. To interpret it, we will use similar method as the Variational Bayesian section above to derive a similar algebraic identity, but with some twist. Namely, we will want to compare the KL divergence of each backward step between the theoretical one ($q(x_{t-1}|x_t)$) vs the approximation by neural network ($p_\theta(x_{t-1}|x_t)$).
+
+
+
+Let's write down the ELB expression (notice the $x_{0:T}$ vs $x_{1:T}$ difference)
+
+$\mathbb E_{x_{1:T} \sim q} \left[ \ln \frac{p_\theta(x_{0:T}) }{ q(x_{1:T} | x_0) } \right]$
+
+To implement the idea above, the key is to expand the joint probability distribution into products of conditionals on each step using the markov chain property. For the approximate decoder $p_\theta$, this can be done directly. For the exact theoretical decoder though we want it to have analytic expression. Recall that we've shown this would be possible provided we cheat and slip in $x_0$ as an additional condition, we'll simply use the modified law that slip in $x_0$ as additional condition in all terms and all formulas (what is the math justification for this technique - can you prove it is correct using only raw probability axioms?). So,
+
+$\mathcal L = \mathbb E_{x_{1:T} \sim q} \left[ \ln \frac{p_{\theta} (x_T)\prod_{t=1}^T p_\theta (x_{t-1} | x_t) }{ q(x_T|x_0) \prod_{t=2}^T q(x_{t-1} | x_t, x_0) } \right]$
+
+Then we just match the terms. Notice that there will be some odd ones left out at both end of the boundary.
+
+$= \mathbb E_{x_{1:T} \sim q} \left[ \ln \frac{p_\theta(x_T)}{q(x_T | x_0)} + \sum_{t=2}^T \ln \frac{p_\theta (x_{t-1} | x_t)}{q(x_{t-1} | x_t, x_0)} + \ln p_\theta(x_0 | x_1) \right] $
+
+An important benefit of doing this derivation is that since we know $q(x_{t-1} | x_t, x_0)$ is a Gaussian, if we design our network to also have $p_\theta(x_{t-1} | x_t)$ being Gaussian, then we can apply the formula of KL divergence between two Gaussians and express it in terms of the parameters of means and variances only.
+
+
+
+Misc. Note on the score function:
+
+We have for a Gaussian $\nabla_x \ln p(x) = \nabla_x \left( -\frac{1}{2\sigma^2} || x - \mu ||^2 \right) = - \frac{x-\mu}{\sigma^2} = -\frac{\epsilon}{\sigma}$
+
+(Noting that $x = \mu + \sigma \epsilon$)
+
+
+
+
 
 
 
